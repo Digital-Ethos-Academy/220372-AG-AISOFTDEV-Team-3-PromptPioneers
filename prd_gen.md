@@ -49,17 +49,12 @@ Many software projects fail or experience significant delays because of poorly d
   - **Given** I am on the input page, **when** I type my problem statement in the text area, **then** the system accepts and stores my input.
   - **Given** I have entered text, **when** I click "Analyze", **then** the system begins processing my input.
 
-**Story 1.2:** As a user, I want to use voice-to-text input, so that I can naturally brainstorm my ideas verbally.
-- **Acceptance Criteria:**
-  - **Given** I am on the input page, **when** I click the microphone button, **then** the system begins recording my voice.
-  - **Given** I am recording, **when** I finish speaking and stop recording, **then** my speech is converted to text and appears in the input area.
-
-**Story 1.3:** As a user, I want to upload existing documents, so that I can leverage notes and documentation I've already created.
+**Story 1.2:** As a user, I want to upload existing documents, so that I can leverage notes and documentation I've already created.
 - **Acceptance Criteria:**
   - **Given** I am on the input page, **when** I drag and drop a file or click upload, **then** the system accepts .txt, .md, and .docx files up to 10MB.
   - **Given** I have uploaded a file, **when** processing completes, **then** the extracted text appears in the input area for review.
 
-**Story 1.4:** As a user, I want to import content from URLs, so that I can include information from issue trackers or collaboration tools.
+**Story 1.3:** As a user, I want to import content from URLs, so that I can include information from issue trackers or collaboration tools.
 - **Acceptance Criteria:**
   - **Given** I am on the input page, **when** I paste a URL and click import, **then** the system extracts relevant content from the page.
   - **Given** the URL is invalid or inaccessible, **when** import fails, **then** I see a clear error message.
@@ -179,21 +174,9 @@ Many software projects fail or experience significant delays because of poorly d
 
 - **API Rate Limiting:** External API calls must be rate-limited and cached where appropriate to minimize costs and improve response times.
 
-## 6. Release Plan & Milestones
+## 6. Out of Scope & Future Considerations
 
-- **Version 0.5 (Alpha):** January 15, 2026 - Internal testing release with core text input, basic AI analysis, and simple PRD generation. Limited to 50 alpha testers.
-
-- **Version 1.0 (MVP):** March 1, 2026 - Public launch with text and file upload input, intelligent requirement extraction, comprehensive PRD generation, basic chat refinement, and Markdown/PDF export capabilities.
-
-- **Version 1.1:** April 15, 2026 - Enhanced features including voice-to-text input, URL import, JSON export, and improved AI suggestion algorithms.
-
-- **Version 1.2:** June 1, 2026 - Integration features including Jira and GitHub issue creation, version control, and collaborative editing.
-
-- **Version 2.0:** September 1, 2026 - Advanced capabilities including risk assessment, feasibility analysis, template customization, and team collaboration features.
-
-## 7. Out of Scope & Future Considerations
-
-**7.1. Out of Scope for V1.0:**
+**6.1. Out of Scope for V1.0:**
 
 - Real-time collaborative editing with multiple simultaneous users
 - Native mobile applications (mobile-responsive web interface will be provided)
@@ -203,7 +186,7 @@ Many software projects fail or experience significant delays because of poorly d
 - Advanced analytics dashboards for requirement trends
 - Automated requirement validation through code analysis
 
-**7.2. Future Work:**
+**6.2. Future Work:**
 
 - Integration with additional project management platforms (Azure DevOps, Asana, Monday.com)
 - Machine learning model fine-tuned specifically on software requirements
@@ -214,7 +197,7 @@ Many software projects fail or experience significant delays because of poorly d
 - Enterprise features including team workspaces, role-based access control, and audit logs
 - AI-powered estimation of development effort based on requirements
 
-## 8. Appendix & Open Questions
+## 7. Appendix & Open Questions
 
 **Open Questions:**
 
