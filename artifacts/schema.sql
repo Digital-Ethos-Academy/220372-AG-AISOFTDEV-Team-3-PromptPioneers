@@ -1,281 +1,301 @@
 CREATE TABLE users (
-    id TEXT PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL,
-    password_hash TEXT,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL UNIQUE,
     full_name TEXT,
+    hashed_password TEXT,
+    oauth_provider TEXT,
+    oauth_id TEXT,
     role TEXT NOT NULL,
-    auth_provider TEXT NOT NULL,
-    provider_id TEXT,
     is_active INTEGER NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_users_email ON users(email);
-
-CREATE TABLE projects (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
+CREATE TABLE prds (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
     status TEXT NOT NULL,
-    current_version_id TEXT,
-    is_deleted INTEGER NOT NULL DEFAULT 0,
+    current_version INTEGER NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(user_id) REFERENCES users(id),
-    FOREIGN KEY(current_version_id) REFERENCES prd_versions(id)
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_projects_user_id ON projects(user_id);
+CREATE INDEX idx_prds_user_id ON prds(user_id);
 
 CREATE TABLE prd_versions (
-    id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prd_id INTEGER NOT NULL,
     version_number INTEGER NOT NULL,
-    summary TEXT,
-    status TEXT NOT NULL,
-    created_by TEXT NOT NULL,
-    is_deleted INTEGER NOT NULL DEFAULT 0,
+    title TEXT,
+    description TEXT,
+    content TEXT,
+    changelog TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(project_id) REFERENCES projects(id),
-    FOREIGN KEY(created_by) REFERENCES users(id)
+    FOREIGN KEY(prd_id) REFERENCES prds(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_prd_versions_project_id ON prd_versions(project_id);
+CREATE INDEX idx_prd_versions_prd_id ON prd_versions(prd_id);
 
-CREATE TABLE input_sources (
-    id TEXT PRIMARY KEY,
-    prd_version_id TEXT NOT NULL,
-    type TEXT NOT NULL,
+CREATE TABLE problem_statements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prd_id INTEGER NOT NULL,
+    input_text TEXT,
+    source_type TEXT NOT NULL,
     source_url TEXT,
-    file_name TEXT,
-    file_size INTEGER,
-    file_type TEXT,
-    text_content TEXT,
-    uploaded_by TEXT NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(prd_version_id) REFERENCES prd_versions(id),
-    FOREIGN KEY(uploaded_by) REFERENCES users(id)
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(prd_id) REFERENCES prds(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_input_sources_prd_version_id ON input_sources(prd_version_id);
+CREATE INDEX idx_problem_statements_prd_id ON problem_statements(prd_id);
+
+CREATE TABLE input_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prd_id INTEGER NOT NULL,
+    filename TEXT NOT NULL,
+    filetype TEXT NOT NULL,
+    filesize INTEGER NOT NULL,
+    content BLOB,
+    extracted_text TEXT,
+    uploaded_by INTEGER,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(prd_id) REFERENCES prds(id) ON DELETE CASCADE,
+    FOREIGN KEY(uploaded_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_input_documents_prd_id ON input_documents(prd_id);
 
 CREATE TABLE personas (
-    id TEXT PRIMARY KEY,
-    prd_version_id TEXT NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prd_id INTEGER NOT NULL,
     name TEXT NOT NULL,
     role TEXT,
     demographics TEXT,
     characteristics TEXT,
     description TEXT,
+    is_ai_generated INTEGER NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(prd_version_id) REFERENCES prd_versions(id)
+    FOREIGN KEY(prd_id) REFERENCES prds(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_personas_prd_version_id ON personas(prd_version_id);
+CREATE INDEX idx_personas_prd_id ON personas(prd_id);
 
 CREATE TABLE requirements (
-    id TEXT PRIMARY KEY,
-    prd_version_id TEXT NOT NULL,
-    type TEXT NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prd_id INTEGER NOT NULL,
+    req_type TEXT NOT NULL,
     title TEXT NOT NULL,
     description TEXT NOT NULL,
     priority TEXT,
-    source TEXT,
     is_implicit INTEGER NOT NULL DEFAULT 0,
-    status TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(prd_version_id) REFERENCES prd_versions(id)
+    FOREIGN KEY(prd_id) REFERENCES prds(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_requirements_prd_version_id ON requirements(prd_version_id);
+CREATE INDEX idx_requirements_prd_id ON requirements(prd_id);
+CREATE INDEX idx_requirements_type ON requirements(req_type);
 
 CREATE TABLE user_stories (
-    id TEXT PRIMARY KEY,
-    prd_version_id TEXT NOT NULL,
-    persona_id TEXT,
-    title TEXT NOT NULL,
-    story TEXT NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prd_id INTEGER NOT NULL,
+    persona_id INTEGER,
+    story_text TEXT NOT NULL,
     benefit TEXT,
     priority TEXT,
-    status TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(prd_version_id) REFERENCES prd_versions(id),
-    FOREIGN KEY(persona_id) REFERENCES personas(id)
+    FOREIGN KEY(prd_id) REFERENCES prds(id) ON DELETE CASCADE,
+    FOREIGN KEY(persona_id) REFERENCES personas(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_user_stories_prd_version_id ON user_stories(prd_version_id);
+CREATE INDEX idx_user_stories_prd_id ON user_stories(prd_id);
 
 CREATE TABLE acceptance_criteria (
-    id TEXT PRIMARY KEY,
-    user_story_id TEXT NOT NULL,
-    criteria TEXT NOT NULL,
-    sequence INTEGER NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_story_id INTEGER NOT NULL,
+    criteria_text TEXT NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(user_story_id) REFERENCES user_stories(id)
+    FOREIGN KEY(user_story_id) REFERENCES user_stories(id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_acceptance_criteria_user_story_id ON acceptance_criteria(user_story_id);
 
-CREATE TABLE clarifying_questions (
-    id TEXT PRIMARY KEY,
-    prd_version_id TEXT NOT NULL,
-    question TEXT NOT NULL,
-    ai_detected INTEGER NOT NULL DEFAULT 1,
-    answered INTEGER NOT NULL DEFAULT 0,
-    answer TEXT,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    answered_at DATETIME,
-    FOREIGN KEY(prd_version_id) REFERENCES prd_versions(id)
-);
-
-CREATE INDEX idx_clarifying_questions_prd_version_id ON clarifying_questions(prd_version_id);
-
 CREATE TABLE technical_requirements (
-    id TEXT PRIMARY KEY,
-    prd_version_id TEXT NOT NULL,
-    type TEXT NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prd_id INTEGER NOT NULL,
     description TEXT NOT NULL,
-    recommendation TEXT,
+    technology_stack TEXT,
+    integrations TEXT,
+    constraints TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(prd_version_id) REFERENCES prd_versions(id)
+    FOREIGN KEY(prd_id) REFERENCES prds(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_technical_requirements_prd_version_id ON technical_requirements(prd_version_id);
-
-CREATE TABLE goals (
-    id TEXT PRIMARY KEY,
-    prd_version_id TEXT NOT NULL,
-    description TEXT NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(prd_version_id) REFERENCES prd_versions(id)
-);
-
-CREATE INDEX idx_goals_prd_version_id ON goals(prd_version_id);
+CREATE INDEX idx_technical_requirements_prd_id ON technical_requirements(prd_id);
 
 CREATE TABLE success_metrics (
-    id TEXT PRIMARY KEY,
-    goal_id TEXT NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prd_id INTEGER NOT NULL,
+    goal TEXT NOT NULL,
     kpi TEXT NOT NULL,
-    measurement_method TEXT,
     target_value TEXT,
+    measurement_method TEXT,
     target_timeline TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(goal_id) REFERENCES goals(id)
+    FOREIGN KEY(prd_id) REFERENCES prds(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_success_metrics_goal_id ON success_metrics(goal_id);
+CREATE INDEX idx_success_metrics_prd_id ON success_metrics(prd_id);
 
 CREATE TABLE milestones (
-    id TEXT PRIMARY KEY,
-    prd_version_id TEXT NOT NULL,
-    name TEXT NOT NULL,
-    description TEXT,
-    estimated_date DATE,
-    phase TEXT,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prd_id INTEGER NOT NULL,
+    phase TEXT NOT NULL,
+    deliverables TEXT,
     dependencies TEXT,
+    estimated_date DATETIME,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(prd_version_id) REFERENCES prd_versions(id)
+    FOREIGN KEY(prd_id) REFERENCES prds(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_milestones_prd_version_id ON milestones(prd_version_id);
+CREATE INDEX idx_milestones_prd_id ON milestones(prd_id);
 
 CREATE TABLE chat_sessions (
-    id TEXT PRIMARY KEY,
-    prd_version_id TEXT NOT NULL,
-    started_by TEXT NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prd_id INTEGER NOT NULL,
+    user_id INTEGER,
     started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     ended_at DATETIME,
-    FOREIGN KEY(prd_version_id) REFERENCES prd_versions(id),
-    FOREIGN KEY(started_by) REFERENCES users(id)
+    FOREIGN KEY(prd_id) REFERENCES prds(id) ON DELETE CASCADE,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_chat_sessions_prd_version_id ON chat_sessions(prd_version_id);
+CREATE INDEX idx_chat_sessions_prd_id ON chat_sessions(prd_id);
 
 CREATE TABLE chat_messages (
-    id TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL,
     sender_type TEXT NOT NULL,
-    sender_id TEXT,
-    message TEXT NOT NULL,
+    sender_id INTEGER,
+    message_text TEXT NOT NULL,
+    message_type TEXT NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(session_id) REFERENCES chat_sessions(id)
+    FOREIGN KEY(session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_chat_messages_session_id ON chat_messages(session_id);
 
-CREATE TABLE feature_suggestions (
-    id TEXT PRIMARY KEY,
-    prd_version_id TEXT NOT NULL,
-    suggestion TEXT NOT NULL,
-    rationale TEXT,
-    is_selected INTEGER NOT NULL DEFAULT 0,
+CREATE TABLE refinement_actions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prd_id INTEGER NOT NULL,
+    user_id INTEGER,
+    action_type TEXT NOT NULL,
+    entity_type TEXT,
+    entity_id INTEGER,
+    change_details TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(prd_version_id) REFERENCES prd_versions(id)
+    FOREIGN KEY(prd_id) REFERENCES prds(id) ON DELETE CASCADE,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_feature_suggestions_prd_version_id ON feature_suggestions(prd_version_id);
+CREATE INDEX idx_refinement_actions_prd_id ON refinement_actions(prd_id);
 
-CREATE TABLE risks (
-    id TEXT PRIMARY KEY,
-    prd_version_id TEXT NOT NULL,
-    risk_type TEXT NOT NULL,
-    description TEXT NOT NULL,
-    severity TEXT NOT NULL,
-    mitigation TEXT,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(prd_version_id) REFERENCES prd_versions(id)
+CREATE TABLE export_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prd_id INTEGER NOT NULL,
+    user_id INTEGER,
+    export_format TEXT NOT NULL,
+    exported_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    file_url TEXT,
+    integration_type TEXT,
+    integration_status TEXT,
+    FOREIGN KEY(prd_id) REFERENCES prds(id) ON DELETE CASCADE,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_risks_prd_version_id ON risks(prd_version_id);
+CREATE INDEX idx_export_history_prd_id ON export_history(prd_id);
 
-CREATE TABLE exports (
-    id TEXT PRIMARY KEY,
-    prd_version_id TEXT NOT NULL,
-    exported_by TEXT NOT NULL,
-    export_type TEXT NOT NULL,
-    file_format TEXT NOT NULL,
-    export_status TEXT NOT NULL,
-    external_system TEXT,
-    external_reference TEXT,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(prd_version_id) REFERENCES prd_versions(id),
-    FOREIGN KEY(exported_by) REFERENCES users(id)
+CREATE TABLE background_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prd_id INTEGER,
+    job_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    result TEXT,
+    error_message TEXT,
+    started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME,
+    FOREIGN KEY(prd_id) REFERENCES prds(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_exports_prd_version_id ON exports(prd_version_id);
+CREATE INDEX idx_background_jobs_prd_id ON background_jobs(prd_id);
 
 CREATE TABLE audit_logs (
-    id TEXT PRIMARY KEY,
-    user_id TEXT,
-    prd_version_id TEXT,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    prd_id INTEGER,
     action TEXT NOT NULL,
-    entity_type TEXT,
-    entity_id TEXT,
     details TEXT,
-    ip_address TEXT,
-    user_agent TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(user_id) REFERENCES users(id),
-    FOREIGN KEY(prd_version_id) REFERENCES prd_versions(id)
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY(prd_id) REFERENCES prds(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_audit_logs_prd_version_id ON audit_logs(prd_version_id);
+CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
+CREATE INDEX idx_audit_logs_prd_id ON audit_logs(prd_id);
 
-CREATE TABLE integration_connections (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    provider TEXT NOT NULL,
-    access_token TEXT NOT NULL,
-    refresh_token TEXT,
-    expires_at DATETIME,
+CREATE TABLE risks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prd_id INTEGER NOT NULL,
+    risk_type TEXT NOT NULL,
+    description TEXT NOT NULL,
+    severity TEXT,
+    mitigation TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(user_id) REFERENCES users(id)
+    FOREIGN KEY(prd_id) REFERENCES prds(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_integration_connections_user_id ON integration_connections(user_id);
+CREATE INDEX idx_risks_prd_id ON risks(prd_id);
+
+CREATE TABLE enhancement_suggestions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prd_id INTEGER NOT NULL,
+    suggestion_text TEXT NOT NULL,
+    ai_generated INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    user_selected INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY(prd_id) REFERENCES prds(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_enhancement_suggestions_prd_id ON enhancement_suggestions(prd_id);
+
+CREATE TABLE clarifying_questions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prd_id INTEGER NOT NULL,
+    question_text TEXT NOT NULL,
+    ai_generated INTEGER NOT NULL DEFAULT 1,
+    answered INTEGER NOT NULL DEFAULT 0,
+    answer_text TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    answered_at DATETIME,
+    FOREIGN KEY(prd_id) REFERENCES prds(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_clarifying_questions_prd_id ON clarifying_questions(prd_id);
+
+CREATE TABLE nonfunctional_requirements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prd_id INTEGER NOT NULL,
+    nfr_category TEXT NOT NULL,
+    description TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(prd_id) REFERENCES prds(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_nonfunctional_requirements_prd_id ON nonfunctional_requirements(prd_id);
