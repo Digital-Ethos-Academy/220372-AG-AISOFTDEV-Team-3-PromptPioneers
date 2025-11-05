@@ -147,11 +147,6 @@ Many software projects fail or experience significant delays because of poorly d
   - **Given** I have connected my Jira or GitHub account, **when** I click "Create Issues", **then** the system creates tickets for each user story.
   - **Given** issues are created, **when** I view them in the external tool, **then** they include title, description, acceptance criteria, and labels.
 
-**Story 5.4:** As a user, I want version control for my PRD, so that I can track changes over time.
-- **Acceptance Criteria:**
-  - **Given** I make changes to my PRD, **when** I save them, **then** the system creates a new version with timestamp.
-  - **Given** multiple versions exist, **when** I view version history, **then** I can compare changes and restore previous versions.
-
 ## 5. Non-Functional Requirements (NFRs)
 
 - **Performance:** The application must analyze and generate initial PRD drafts in under 2 minutes for inputs up to 5,000 words. Page load times must not exceed 2 seconds on standard broadband connections.
