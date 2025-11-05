@@ -59,6 +59,13 @@ Many software projects fail or experience significant delays because of poorly d
   - **Given** I am on the input page, **when** I paste a URL and click import, **then** the system extracts relevant content from the page.
   - **Given** the URL is invalid or inaccessible, **when** import fails, **then** I see a clear error message.
 
+**Story 1.4:** As a user, I want to upload a custom PRD template, so that the generated PRD follows my organization's specific format and structure.
+- **Acceptance Criteria:**
+  - **Given** I am on the input page, **when** I upload a PRD template file (.md or .docx), **then** the system accepts and stores my custom template.
+  - **Given** I have not uploaded a custom template, **when** I generate a PRD, **then** the system uses the default PRD template provided by the application.
+  - **Given** I have uploaded a custom template, **when** I generate a PRD, **then** the system uses my custom template structure to format the output.
+  - **Given** my uploaded template is invalid or improperly formatted, **when** processing fails, **then** I see a clear error message and the option to use the default template instead.
+
 ### Epic 2: Intelligent Requirement Analysis
 
 **Story 2.1:** As a user, I want the AI to automatically identify stakeholders and user personas, so that I don't have to manually define them.
@@ -146,7 +153,7 @@ Many software projects fail or experience significant delays because of poorly d
 
 - **Performance:** The application must analyze and generate initial PRD drafts in under 2 minutes for inputs up to 5,000 words. Page load times must not exceed 2 seconds on standard broadband connections.
 
-- **Security:** All user data must be encrypted in transit using TLS 1.3 and at rest using AES-256. API keys for AI services must be stored securely using environment variables and secrets management. User authentication must support SSO and OAuth 2.0.
+- **Security:** API keys for AI services must be stored securely using environment variables and secrets management. User authentication must support SSO and OAuth 2.0.
 
 - **Scalability:** The system must support up to 500 concurrent users with response times under 3 seconds. The architecture must be horizontally scalable to accommodate growth to 10,000+ users.
 
@@ -154,7 +161,7 @@ Many software projects fail or experience significant delays because of poorly d
 
 - **Accessibility:** The user interface must comply with WCAG 2.1 AA standards. All functionality must be keyboard-navigable, and screen reader compatible.
 
-- **Usability:** Users must be able to generate their first PRD within 20 minutes of account creation without training. The interface must be intuitive with contextual help available throughout.
+- **Usability:** Users must be able to generate their first PRD within 20 minutes. The interface must be intuitive with contextual help available throughout.
 
 - **Reliability:** The AI analysis must maintain consistent output quality with less than 5% variance in completeness scores. The system must gracefully handle AI API failures with appropriate user messaging.
 
