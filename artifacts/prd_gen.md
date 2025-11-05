@@ -142,11 +142,6 @@ Many software projects fail or experience significant delays because of poorly d
   - **Given** my PRD contains user stories, **when** I export to JSON, **then** the file includes all stories with acceptance criteria in a standard format.
   - **Given** the JSON is exported, **when** I import it into Jira or similar tools, **then** the structure is compatible without transformation.
 
-**Story 5.3:** As a user, I want to generate Jira or GitHub Issues directly, so that I can immediately start project tracking.
-- **Acceptance Criteria:**
-  - **Given** I have connected my Jira or GitHub account, **when** I click "Create Issues", **then** the system creates tickets for each user story.
-  - **Given** issues are created, **when** I view them in the external tool, **then** they include title, description, acceptance criteria, and labels.
-
 ## 5. Non-Functional Requirements (NFRs)
 
 - **Performance:** The application must analyze and generate initial PRD drafts in under 2 minutes for inputs up to 5,000 words. Page load times must not exceed 2 seconds on standard broadband connections.
