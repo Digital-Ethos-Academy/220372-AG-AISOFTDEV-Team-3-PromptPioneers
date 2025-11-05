@@ -1,11 +1,21 @@
+"""
+AI-Powered Requirement Analyzer - Main API Module
+
+This module provides REST API endpoints for managing file attachments
+in the Product Requirements Document generation system.
+"""
+
+from typing import Optional, List
+from datetime import datetime
+from enum import Enum
+
 from fastapi import FastAPI, HTTPException, status, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List
-from datetime import datetime
-from enum import Enum
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
+
 from database import get_db, init_db
 from models import FileAttachment as FileAttachmentModel
 
@@ -15,18 +25,28 @@ from models import FileAttachment as FileAttachmentModel
 # ============================================================================
 
 class FileTypeEnum(str, Enum):
-    """Allowed file types for attachments."""
-    txt = "txt"
-    md = "md"
-    docx = "docx"
+    """Enumeration of supported file types for document attachments."""
+    TXT = "txt"
+    MD = "md"
+    DOCX = "docx"
+    
+    @classmethod
+    def is_valid(cls, value: str) -> bool:
+        """Check if a file type value is valid."""
+        return value in cls._value2member_map_
 
 
 class FileAttachmentStatus(str, Enum):
-    """Status of file attachment."""
-    uploaded = "uploaded"
-    processing = "processing"
-    processed = "processed"
-    failed = "failed"
+    """Enumeration of file attachment processing states."""
+    UPLOADED = "uploaded"
+    PROCESSING = "processing"
+    PROCESSED = "processed"
+    FAILED = "failed"
+    
+    @classmethod
+    def is_valid(cls, value: str) -> bool:
+        """Check if a status value is valid."""
+        return value in cls._value2member_map_
 
 
 # ============================================================================
@@ -50,10 +70,17 @@ class FileAttachmentBase(BaseModel):
     @field_validator('file_size')
     @classmethod
     def validate_file_size(cls, v: int) -> int:
-        """Validate file size is reasonable (max 50MB)."""
-        max_size = 50 * 1024 * 1024  # 50MB
-        if v > max_size:
-            raise ValueError(f'File size must not exceed {max_size} bytes (50MB)')
+        """Validate file size is within acceptable limits (max 50MB)."""
+        MAX_FILE_SIZE: int = 50 * 1024 * 1024  # 50MB in bytes
+        MIN_FILE_SIZE: int = 1  # Minimum 1 byte
+        
+        if v < MIN_FILE_SIZE:
+            raise ValueError(f'File size must be at least {MIN_FILE_SIZE} byte')
+        if v > MAX_FILE_SIZE:
+            raise ValueError(
+                f'File size must not exceed {MAX_FILE_SIZE:,} bytes '
+                f'({MAX_FILE_SIZE // (1024 * 1024)}MB)'
+            )
         return v
 
 
@@ -82,11 +109,18 @@ class FileAttachmentUpdate(BaseModel):
     @field_validator('file_size')
     @classmethod
     def validate_file_size(cls, v: Optional[int]) -> Optional[int]:
-        """Validate file size if provided."""
+        """Validate file size if provided (max 50MB)."""
         if v is not None:
-            max_size = 50 * 1024 * 1024  # 50MB
-            if v > max_size:
-                raise ValueError(f'File size must not exceed {max_size} bytes (50MB)')
+            MAX_FILE_SIZE: int = 50 * 1024 * 1024  # 50MB in bytes
+            MIN_FILE_SIZE: int = 1  # Minimum 1 byte
+            
+            if v < MIN_FILE_SIZE:
+                raise ValueError(f'File size must be at least {MIN_FILE_SIZE} byte')
+            if v > MAX_FILE_SIZE:
+                raise ValueError(
+                    f'File size must not exceed {MAX_FILE_SIZE:,} bytes '
+                    f'({MAX_FILE_SIZE // (1024 * 1024)}MB)'
+                )
         return v
 
 
@@ -141,10 +175,12 @@ async def startup_event():
 # ============================================================================
 
 @app.get("/", tags=["Root"])
-async def root():
+async def root() -> dict[str, str | dict[str, str]]:
     """
     Root endpoint providing API information.
-    Returns basic details about the API and available endpoints.
+    
+    Returns:
+        Dictionary containing API name, version, status, and available endpoints.
     """
     return {
         "name": "AI-Powered Requirement Analyzer API",
@@ -159,27 +195,37 @@ async def root():
 
 
 @app.get("/health", tags=["Health"])
-async def health_check(db: Session = Depends(get_db)):
+async def health_check(
+    db: Session = Depends(get_db)
+) -> dict[str, str | dict[str, str | bool | int]]:
     """
-    Health check endpoint to verify API is operational.
-    Returns status and database information.
+    Health check endpoint to verify API and database operational status.
+    
+    Args:
+        db: Database session injected via dependency.
+        
+    Returns:
+        Dictionary containing health status, timestamp, and database information.
     """
+    current_timestamp: str = datetime.now().isoformat()
+    
     try:
         # Test database connection by counting file attachments
-        count = db.query(FileAttachmentModel).count()
+        count: int = db.query(FileAttachmentModel).count()
         return {
             "status": "healthy",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": current_timestamp,
             "database": {
                 "type": "sqlite",
                 "connected": True,
                 "file_attachments_count": count
             }
         }
-    except Exception as e:
+    except SQLAlchemyError as e:
+        # Log the error for debugging (in production, use proper logging)
         return {
             "status": "unhealthy",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": current_timestamp,
             "database": {
                 "type": "sqlite",
                 "connected": False,
@@ -201,24 +247,39 @@ async def health_check(db: Session = Depends(get_db)):
 async def create_file_attachment(
     file_attachment: FileAttachmentCreate,
     db: Session = Depends(get_db)
-):
+) -> FileAttachmentModel:
     """
-    Create a new file attachment.
+    Create a new file attachment record in the database.
     
-    Accepts file attachment details and returns the created resource
-    with generated ID and timestamps.
+    Args:
+        file_attachment: File attachment data to create.
+        db: Database session injected via dependency.
+        
+    Returns:
+        Created file attachment with generated ID and timestamps.
+        
+    Raises:
+        HTTPException: If database operation fails.
     """
-    # Create new FileAttachment model instance
-    db_attachment = FileAttachmentModel(
-        **file_attachment.model_dump()
-    )
-    
-    # Add to database and commit
-    db.add(db_attachment)
-    db.commit()
-    db.refresh(db_attachment)
-    
-    return db_attachment
+    try:
+        # Create new FileAttachment model instance from validated data
+        db_attachment: FileAttachmentModel = FileAttachmentModel(
+            **file_attachment.model_dump()
+        )
+        
+        # Persist to database
+        db.add(db_attachment)
+        db.commit()
+        db.refresh(db_attachment)
+        
+        return db_attachment
+        
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: Failed to create file attachment"
+        ) from e
 
 
 @app.get(
@@ -227,21 +288,38 @@ async def create_file_attachment(
     tags=["File Attachments"]
 )
 async def list_file_attachments(
-    conversation_id: Optional[int] = Query(None, description="Filter by conversation ID"),
+    conversation_id: Optional[int] = Query(None, ge=1, description="Filter by conversation ID"),
     db: Session = Depends(get_db)
-):
+) -> List[FileAttachmentModel]:
     """
-    List all file attachments with optional filtering.
+    Retrieve all file attachments with optional conversation filtering.
     
-    Can be filtered by conversation_id to retrieve attachments
-    for a specific conversation.
+    Args:
+        conversation_id: Optional conversation ID to filter results.
+        db: Database session injected via dependency.
+        
+    Returns:
+        List of file attachments matching the filter criteria.
+        
+    Raises:
+        HTTPException: If database query fails.
     """
-    query = db.query(FileAttachmentModel)
-    
-    if conversation_id is not None:
-        query = query.filter(FileAttachmentModel.conversation_id == conversation_id)
-    
-    return query.all()
+    try:
+        query = db.query(FileAttachmentModel)
+        
+        # Apply conversation filter if provided
+        if conversation_id is not None:
+            query = query.filter(
+                FileAttachmentModel.conversation_id == conversation_id
+            )
+        
+        return query.all()
+        
+    except SQLAlchemyError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error: Failed to retrieve file attachments"
+        ) from e
 
 
 @app.get(
@@ -249,23 +327,50 @@ async def list_file_attachments(
     response_model=FileAttachmentResponse,
     tags=["File Attachments"]
 )
-async def get_file_attachment(file_id: int, db: Session = Depends(get_db)):
+async def get_file_attachment(
+    file_id: int,
+    db: Session = Depends(get_db)
+) -> FileAttachmentModel:
     """
-    Get a specific file attachment by ID.
+    Retrieve a specific file attachment by its unique identifier.
     
-    Returns the file attachment details if found, otherwise raises 404 error.
+    Args:
+        file_id: Unique identifier of the file attachment.
+        db: Database session injected via dependency.
+        
+    Returns:
+        File attachment with the specified ID.
+        
+    Raises:
+        HTTPException: 404 if file attachment not found, 500 if database error.
     """
-    attachment = db.query(FileAttachmentModel).filter(
-        FileAttachmentModel.id == file_id
-    ).first()
-    
-    if attachment is None:
+    # Validate file_id is positive
+    if file_id < 1:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"File attachment with id {file_id} not found"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File ID must be a positive integer"
         )
     
-    return attachment
+    try:
+        attachment: Optional[FileAttachmentModel] = db.query(
+            FileAttachmentModel
+        ).filter(
+            FileAttachmentModel.id == file_id
+        ).first()
+        
+        if attachment is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"File attachment with ID {file_id} not found"
+            )
+        
+        return attachment
+        
+    except SQLAlchemyError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error: Failed to retrieve file attachment"
+        ) from e
 
 
 @app.put(
@@ -277,31 +382,57 @@ async def update_file_attachment(
     file_id: int,
     file_attachment: FileAttachmentCreate,
     db: Session = Depends(get_db)
-):
+) -> FileAttachmentModel:
     """
-    Fully update an existing file attachment.
+    Perform a full update of an existing file attachment.
     
-    Replaces all fields of the file attachment with the provided values.
-    Returns 404 if the file attachment doesn't exist.
+    Args:
+        file_id: Unique identifier of the file attachment to update.
+        file_attachment: New file attachment data.
+        db: Database session injected via dependency.
+        
+    Returns:
+        Updated file attachment with refreshed data.
+        
+    Raises:
+        HTTPException: 400 for invalid ID, 404 if not found, 500 if database error.
     """
-    attachment = db.query(FileAttachmentModel).filter(
-        FileAttachmentModel.id == file_id
-    ).first()
-    
-    if attachment is None:
+    # Validate file_id is positive
+    if file_id < 1:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"File attachment with id {file_id} not found"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File ID must be a positive integer"
         )
     
-    # Update all fields
-    for key, value in file_attachment.model_dump().items():
-        setattr(attachment, key, value)
-    
-    db.commit()
-    db.refresh(attachment)
-    
-    return attachment
+    try:
+        attachment: Optional[FileAttachmentModel] = db.query(
+            FileAttachmentModel
+        ).filter(
+            FileAttachmentModel.id == file_id
+        ).first()
+        
+        if attachment is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"File attachment with ID {file_id} not found"
+            )
+        
+        # Update all fields from validated input
+        update_data: dict = file_attachment.model_dump()
+        for key, value in update_data.items():
+            setattr(attachment, key, value)
+        
+        db.commit()
+        db.refresh(attachment)
+        
+        return attachment
+        
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error: Failed to update file attachment"
+        ) from e
 
 
 @app.patch(
@@ -313,32 +444,68 @@ async def partial_update_file_attachment(
     file_id: int,
     file_attachment: FileAttachmentUpdate,
     db: Session = Depends(get_db)
-):
+) -> FileAttachmentModel:
     """
-    Partially update an existing file attachment.
+    Perform a partial update of an existing file attachment.
     
-    Only updates the fields provided in the request body.
-    Returns 404 if the file attachment doesn't exist.
+    Only the fields provided in the request body will be updated.
+    
+    Args:
+        file_id: Unique identifier of the file attachment to update.
+        file_attachment: Partial file attachment data with fields to update.
+        db: Database session injected via dependency.
+        
+    Returns:
+        Updated file attachment with refreshed data.
+        
+    Raises:
+        HTTPException: 400 for invalid ID or empty update, 404 if not found, 
+                      500 if database error.
     """
-    attachment = db.query(FileAttachmentModel).filter(
-        FileAttachmentModel.id == file_id
-    ).first()
-    
-    if attachment is None:
+    # Validate file_id is positive
+    if file_id < 1:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"File attachment with id {file_id} not found"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File ID must be a positive integer"
         )
     
-    # Update only provided fields
-    update_data = file_attachment.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(attachment, key, value)
-    
-    db.commit()
-    db.refresh(attachment)
-    
-    return attachment
+    try:
+        attachment: Optional[FileAttachmentModel] = db.query(
+            FileAttachmentModel
+        ).filter(
+            FileAttachmentModel.id == file_id
+        ).first()
+        
+        if attachment is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"File attachment with ID {file_id} not found"
+            )
+        
+        # Extract only the fields that were explicitly set
+        update_data: dict = file_attachment.model_dump(exclude_unset=True)
+        
+        if not update_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No fields provided for update"
+            )
+        
+        # Apply partial update
+        for key, value in update_data.items():
+            setattr(attachment, key, value)
+        
+        db.commit()
+        db.refresh(attachment)
+        
+        return attachment
+        
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error: Failed to update file attachment"
+        ) from e
 
 
 @app.delete(
@@ -346,27 +513,55 @@ async def partial_update_file_attachment(
     status_code=status.HTTP_204_NO_CONTENT,
     tags=["File Attachments"]
 )
-async def delete_file_attachment(file_id: int, db: Session = Depends(get_db)):
+async def delete_file_attachment(
+    file_id: int,
+    db: Session = Depends(get_db)
+) -> Response:
     """
-    Delete a file attachment.
+    Delete a file attachment from the database.
     
-    Removes the file attachment from the database.
-    Returns 204 No Content on success, 404 if not found.
+    Args:
+        file_id: Unique identifier of the file attachment to delete.
+        db: Database session injected via dependency.
+        
+    Returns:
+        Response with 204 No Content status on successful deletion.
+        
+    Raises:
+        HTTPException: 400 for invalid ID, 404 if not found, 500 if database error.
     """
-    attachment = db.query(FileAttachmentModel).filter(
-        FileAttachmentModel.id == file_id
-    ).first()
-    
-    if attachment is None:
+    # Validate file_id is positive
+    if file_id < 1:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"File attachment with id {file_id} not found"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File ID must be a positive integer"
         )
     
-    db.delete(attachment)
-    db.commit()
-    
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    try:
+        attachment: Optional[FileAttachmentModel] = db.query(
+            FileAttachmentModel
+        ).filter(
+            FileAttachmentModel.id == file_id
+        ).first()
+        
+        if attachment is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"File attachment with ID {file_id} not found"
+            )
+        
+        # Delete the record
+        db.delete(attachment)
+        db.commit()
+        
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+        
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error: Failed to delete file attachment"
+        ) from e
 
 
 # ============================================================================
