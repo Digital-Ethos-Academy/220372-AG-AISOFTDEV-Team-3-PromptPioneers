@@ -1,0 +1,43 @@
+@startuml
+' Component diagram for AI-Powered Requirement Analyzer
+
+skinparam componentStyle rectangle
+
+package "AI-Powered Requirement Analyzer" {
+
+  [Web Frontend\n(React/Vue.js)] as FE
+  [FastAPI Backend Server] as API
+  [AI Processing Engine] as AIEngine
+  [Background Job Queue] as JobQueue
+  [SQLite Database] as DB
+  [File Storage System] as FileStore
+  [External AI APIs\n(OpenAI/Anthropic/Google)] as LLMAPI
+
+  FE -[#0000FF]-> API : HTTPS\nUser Interaction\n(Auth, PRD, Chat, File)
+  API -[#008800]-> DB : SQL\nConversation, Messages,\nPRD, Attachments
+  API -[#FF8000]-> JobQueue : Enqueue AI Analysis\n& PRD Generation Tasks
+  JobQueue -[#FF8000]-> AIEngine : Dispatch Async\nProcessing Tasks
+  AIEngine -[#AA00FF]-> LLMAPI : LLM Calls\n(Requirement Analysis,\nPRD Generation)
+  AIEngine -[#008800]-> API : Results, Clarifications,\nStatus Update
+  API -[#008800]-> DB : Store AI Results,\nClarifications, PRD Versions
+  API -[#444444]-> FileStore : Upload/Download\nUser Files,\nPRD Exports
+
+  FE -[#444444]-> FileStore : Direct File Downloads\n(Exports)
+
+  ' Optional: show FileStore <--> DB for metadata, if needed
+  ' FileStore .. DB : Metadata Reference
+
+  ' Note on async flow
+  JobQueue ..> API : (Task Status via\nCallback/Webhook)
+
+}
+
+' Legend
+legend right
+  HTTPS/API = RESTful API calls
+  SQL = Database queries
+  LLM Calls = Calls to external AI/LLM providers
+  File = File uploads/downloads (user docs, exports)
+endlegend
+
+@enduml

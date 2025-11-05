@@ -1,0 +1,47 @@
+@startuml
+actor User
+participant Web_Frontend
+participant FastAPI_Backend
+participant Background_Job_Queue
+participant AI_Processing_Engine
+participant External_AI_API
+database SQLite_Database
+
+== Problem Statement Submission ==
+
+User -> Web_Frontend : Enter problem statement\nClick "Analyze"
+Web_Frontend -> FastAPI_Backend : POST /analyze\n(problem statement)
+
+FastAPI_Backend -> SQLite_Database : INSERT conversation, message
+
+FastAPI_Backend -> Background_Job_Queue : Queue AI analysis job\n(conversation_id, message_id)
+
+== AI Job Processing ==
+
+Background_Job_Queue -> AI_Processing_Engine : Dispatch analysis task\n(conversation_id, message_id)
+
+AI_Processing_Engine -> FastAPI_Backend : GET problem statement\n(conversation_id, message_id)
+FastAPI_Backend -> SQLite_Database : SELECT message by id
+FastAPI_Backend --> AI_Processing_Engine : problem statement
+
+AI_Processing_Engine -> External_AI_API : Analyze problem statement\n(generate PRD)
+
+External_AI_API --> AI_Processing_Engine : Analyzed requirements,\nGenerated PRD content
+
+== PRD Storage ==
+
+AI_Processing_Engine -> FastAPI_Backend : POST /prd_version\n(conversation_id, PRD content)
+FastAPI_Backend -> SQLite_Database : INSERT prd_version
+
+AI_Processing_Engine -> FastAPI_Backend : PATCH /conversation\n(status: "completed")
+FastAPI_Backend -> SQLite_Database : UPDATE conversation.status="completed"
+
+== Notify Frontend & Display ==
+
+FastAPI_Backend -> Web_Frontend : Notify PRD ready (e.g. WebSocket / polling)
+Web_Frontend -> FastAPI_Backend : GET /prd_version\n(conversation_id)
+FastAPI_Backend -> SQLite_Database : SELECT prd_version by conversation_id
+FastAPI_Backend --> Web_Frontend : PRD content
+Web_Frontend -> User : Display generated PRD
+
+@enduml
