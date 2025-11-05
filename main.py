@@ -1,10 +1,13 @@
-from fastapi import FastAPI, HTTPException, status, Query
+from fastapi import FastAPI, HTTPException, status, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
+from sqlalchemy.orm import Session
+from database import get_db, init_db
+from models import FileAttachment as FileAttachmentModel
 
 
 # ============================================================================
@@ -101,79 +104,6 @@ class FileAttachmentResponse(FileAttachmentBase):
 
 
 # ============================================================================
-# IN-MEMORY DATABASE
-# ============================================================================
-
-# Global counter for ID generation
-_file_attachment_id_counter = 1
-
-def generate_id() -> int:
-    """Generate a unique ID for a new file attachment."""
-    global _file_attachment_id_counter
-    new_id = _file_attachment_id_counter
-    _file_attachment_id_counter += 1
-    return new_id
-
-
-# In-memory database: list of dictionaries
-file_attachments_db: List[dict] = [
-    {
-        "id": generate_id(),
-        "conversation_id": 1,
-        "original_filename": "requirements.txt",
-        "file_type": "txt",
-        "file_size": 2048,
-        "storage_path": "/uploads/conv_1/requirements_20251105_120000.txt",
-        "extracted_text": "User should be able to upload files\nSystem should process markdown files\nSupport for Word documents required",
-        "status": "processed",
-        "metadata": '{"upload_source": "web_ui", "user_agent": "Mozilla/5.0"}',
-        "created_at": datetime(2025, 11, 5, 12, 0, 0),
-        "updated_at": datetime(2025, 11, 5, 12, 5, 0)
-    },
-    {
-        "id": generate_id(),
-        "conversation_id": 1,
-        "original_filename": "product_spec.md",
-        "file_type": "md",
-        "file_size": 15360,
-        "storage_path": "/uploads/conv_1/product_spec_20251105_130000.md",
-        "extracted_text": "# Product Specification\n\n## Overview\nThis document outlines the core features...",
-        "status": "processed",
-        "metadata": '{"upload_source": "api", "version": "1.0"}',
-        "created_at": datetime(2025, 11, 5, 13, 0, 0),
-        "updated_at": datetime(2025, 11, 5, 13, 2, 30)
-    },
-    {
-        "id": generate_id(),
-        "conversation_id": 2,
-        "original_filename": "initial_notes.docx",
-        "file_type": "docx",
-        "file_size": 45056,
-        "storage_path": "/uploads/conv_2/initial_notes_20251105_140000.docx",
-        "extracted_text": None,
-        "status": "processing",
-        "metadata": None,
-        "created_at": datetime(2025, 11, 5, 14, 0, 0),
-        "updated_at": datetime(2025, 11, 5, 14, 0, 0)
-    }
-]
-
-
-# ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
-
-def find_file_attachment_by_id(file_id: int) -> Optional[dict]:
-    """Find a file attachment by ID in the in-memory database."""
-    return next((item for item in file_attachments_db if item["id"] == file_id), None)
-
-
-def find_file_attachments_by_conversation(conversation_id: int) -> List[dict]:
-    """Find all file attachments for a specific conversation."""
-    return [item for item in file_attachments_db if item["conversation_id"] == conversation_id]
-
-
-# ============================================================================
 # FASTAPI APPLICATION
 # ============================================================================
 
@@ -193,6 +123,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ============================================================================
+# DATABASE INITIALIZATION
+# ============================================================================
+
+# Initialize database tables on startup
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database tables when application starts."""
+    init_db()
 
 
 # ============================================================================
@@ -218,19 +159,33 @@ async def root():
 
 
 @app.get("/health", tags=["Health"])
-async def health_check():
+async def health_check(db: Session = Depends(get_db)):
     """
     Health check endpoint to verify API is operational.
     Returns status and database information.
     """
-    return {
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "database": {
-            "type": "in-memory",
-            "file_attachments_count": len(file_attachments_db)
+    try:
+        # Test database connection by counting file attachments
+        count = db.query(FileAttachmentModel).count()
+        return {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "database": {
+                "type": "sqlite",
+                "connected": True,
+                "file_attachments_count": count
+            }
         }
-    }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "timestamp": datetime.now().isoformat(),
+            "database": {
+                "type": "sqlite",
+                "connected": False,
+                "error": str(e)
+            }
+        }
 
 
 # ============================================================================
@@ -243,26 +198,27 @@ async def health_check():
     status_code=status.HTTP_201_CREATED,
     tags=["File Attachments"]
 )
-async def create_file_attachment(file_attachment: FileAttachmentCreate):
+async def create_file_attachment(
+    file_attachment: FileAttachmentCreate,
+    db: Session = Depends(get_db)
+):
     """
     Create a new file attachment.
     
     Accepts file attachment details and returns the created resource
     with generated ID and timestamps.
     """
-    # Create new record with generated ID and timestamps
-    now = datetime.now()
-    new_attachment = {
-        "id": generate_id(),
-        **file_attachment.model_dump(),
-        "created_at": now,
-        "updated_at": now
-    }
+    # Create new FileAttachment model instance
+    db_attachment = FileAttachmentModel(
+        **file_attachment.model_dump()
+    )
     
-    # Add to in-memory database
-    file_attachments_db.append(new_attachment)
+    # Add to database and commit
+    db.add(db_attachment)
+    db.commit()
+    db.refresh(db_attachment)
     
-    return FileAttachmentResponse(**new_attachment)
+    return db_attachment
 
 
 @app.get(
@@ -271,7 +227,8 @@ async def create_file_attachment(file_attachment: FileAttachmentCreate):
     tags=["File Attachments"]
 )
 async def list_file_attachments(
-    conversation_id: Optional[int] = Query(None, description="Filter by conversation ID")
+    conversation_id: Optional[int] = Query(None, description="Filter by conversation ID"),
+    db: Session = Depends(get_db)
 ):
     """
     List all file attachments with optional filtering.
@@ -279,11 +236,12 @@ async def list_file_attachments(
     Can be filtered by conversation_id to retrieve attachments
     for a specific conversation.
     """
-    if conversation_id is not None:
-        filtered = find_file_attachments_by_conversation(conversation_id)
-        return [FileAttachmentResponse(**item) for item in filtered]
+    query = db.query(FileAttachmentModel)
     
-    return [FileAttachmentResponse(**item) for item in file_attachments_db]
+    if conversation_id is not None:
+        query = query.filter(FileAttachmentModel.conversation_id == conversation_id)
+    
+    return query.all()
 
 
 @app.get(
@@ -291,13 +249,15 @@ async def list_file_attachments(
     response_model=FileAttachmentResponse,
     tags=["File Attachments"]
 )
-async def get_file_attachment(file_id: int):
+async def get_file_attachment(file_id: int, db: Session = Depends(get_db)):
     """
     Get a specific file attachment by ID.
     
     Returns the file attachment details if found, otherwise raises 404 error.
     """
-    attachment = find_file_attachment_by_id(file_id)
+    attachment = db.query(FileAttachmentModel).filter(
+        FileAttachmentModel.id == file_id
+    ).first()
     
     if attachment is None:
         raise HTTPException(
@@ -305,7 +265,7 @@ async def get_file_attachment(file_id: int):
             detail=f"File attachment with id {file_id} not found"
         )
     
-    return FileAttachmentResponse(**attachment)
+    return attachment
 
 
 @app.put(
@@ -313,14 +273,20 @@ async def get_file_attachment(file_id: int):
     response_model=FileAttachmentResponse,
     tags=["File Attachments"]
 )
-async def update_file_attachment(file_id: int, file_attachment: FileAttachmentCreate):
+async def update_file_attachment(
+    file_id: int,
+    file_attachment: FileAttachmentCreate,
+    db: Session = Depends(get_db)
+):
     """
     Fully update an existing file attachment.
     
     Replaces all fields of the file attachment with the provided values.
     Returns 404 if the file attachment doesn't exist.
     """
-    attachment = find_file_attachment_by_id(file_id)
+    attachment = db.query(FileAttachmentModel).filter(
+        FileAttachmentModel.id == file_id
+    ).first()
     
     if attachment is None:
         raise HTTPException(
@@ -328,13 +294,14 @@ async def update_file_attachment(file_id: int, file_attachment: FileAttachmentCr
             detail=f"File attachment with id {file_id} not found"
         )
     
-    # Update all fields except id and created_at
-    attachment.update({
-        **file_attachment.model_dump(),
-        "updated_at": datetime.now()
-    })
+    # Update all fields
+    for key, value in file_attachment.model_dump().items():
+        setattr(attachment, key, value)
     
-    return FileAttachmentResponse(**attachment)
+    db.commit()
+    db.refresh(attachment)
+    
+    return attachment
 
 
 @app.patch(
@@ -342,14 +309,20 @@ async def update_file_attachment(file_id: int, file_attachment: FileAttachmentCr
     response_model=FileAttachmentResponse,
     tags=["File Attachments"]
 )
-async def partial_update_file_attachment(file_id: int, file_attachment: FileAttachmentUpdate):
+async def partial_update_file_attachment(
+    file_id: int,
+    file_attachment: FileAttachmentUpdate,
+    db: Session = Depends(get_db)
+):
     """
     Partially update an existing file attachment.
     
     Only updates the fields provided in the request body.
     Returns 404 if the file attachment doesn't exist.
     """
-    attachment = find_file_attachment_by_id(file_id)
+    attachment = db.query(FileAttachmentModel).filter(
+        FileAttachmentModel.id == file_id
+    ).first()
     
     if attachment is None:
         raise HTTPException(
@@ -359,13 +332,13 @@ async def partial_update_file_attachment(file_id: int, file_attachment: FileAtta
     
     # Update only provided fields
     update_data = file_attachment.model_dump(exclude_unset=True)
-    if update_data:
-        attachment.update({
-            **update_data,
-            "updated_at": datetime.now()
-        })
+    for key, value in update_data.items():
+        setattr(attachment, key, value)
     
-    return FileAttachmentResponse(**attachment)
+    db.commit()
+    db.refresh(attachment)
+    
+    return attachment
 
 
 @app.delete(
@@ -373,14 +346,16 @@ async def partial_update_file_attachment(file_id: int, file_attachment: FileAtta
     status_code=status.HTTP_204_NO_CONTENT,
     tags=["File Attachments"]
 )
-async def delete_file_attachment(file_id: int):
+async def delete_file_attachment(file_id: int, db: Session = Depends(get_db)):
     """
     Delete a file attachment.
     
     Removes the file attachment from the database.
     Returns 204 No Content on success, 404 if not found.
     """
-    attachment = find_file_attachment_by_id(file_id)
+    attachment = db.query(FileAttachmentModel).filter(
+        FileAttachmentModel.id == file_id
+    ).first()
     
     if attachment is None:
         raise HTTPException(
@@ -388,7 +363,9 @@ async def delete_file_attachment(file_id: int):
             detail=f"File attachment with id {file_id} not found"
         )
     
-    file_attachments_db.remove(attachment)
+    db.delete(attachment)
+    db.commit()
+    
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -398,4 +375,4 @@ async def delete_file_attachment(file_id: int):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main_in_memory:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
