@@ -13,6 +13,8 @@ Key constraints include:
 Simplicity: The initial version must be small and easy to deploy by a single developer.
 Limited resources: No distributed systems, external databases, or message queues at this stage.
 Rapid iteration: The goal is to get a functional prototype working quickly before optimizing for scale.
+
+
 Extensibility: The architecture should be simple to extend later if features like job queues or integrations are needed.
 The solution must balance speed of development, maintainability, and a clear growth path toward more advanced features.
 
