@@ -1,0 +1,5 @@
+In one terminal run 
+venv\Scripts\python.exe -m uvicorn main:app --host localhost --port 8000 --reload
+
+in next terminal run
+npm start
