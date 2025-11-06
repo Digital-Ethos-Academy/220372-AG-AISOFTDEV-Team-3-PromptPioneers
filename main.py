@@ -5,7 +5,7 @@ This module provides REST API endpoints for managing file attachments
 in the Product Requirements Document generation system.
 """
 
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 
@@ -19,6 +19,15 @@ from sqlalchemy.exc import SQLAlchemyError
 from database import get_db, init_db
 from models import FileAttachment as FileAttachmentModel
 from install_dependencies import install_langgraph_dependencies
+
+# Import RAG System
+try:
+    from rag_system import process_user_input_for_prd
+    RAG_SYSTEM_AVAILABLE = True
+    print("✓ RAG system imported successfully")
+except ImportError as e:
+    print(f"⚠ Warning: RAG system not available: {e}")
+    RAG_SYSTEM_AVAILABLE = False
 
 
 # ============================================================================
@@ -139,6 +148,25 @@ class FileAttachmentResponse(FileAttachmentBase):
 
 
 # ============================================================================
+# RAG SYSTEM MODELS
+# ============================================================================
+
+class PRDRequest(BaseModel):
+    """Request model for PRD processing."""
+    user_input: str = Field(..., min_length=1, max_length=5000, description="User's product idea description")
+    conversation_history: Optional[List[Dict[str, str]]] = Field(default=[], description="Previous conversation messages")
+
+class PRDResponse(BaseModel):
+    """Response model for PRD processing."""
+    success: bool = Field(..., description="Whether the processing was successful")
+    prd_content: Dict[str, Any] = Field(..., description="Generated PRD content matching React app structure")
+    clarifying_questions: List[str] = Field(..., description="Questions to improve the PRD")
+    analysis: Dict[str, Any] = Field(..., description="Analysis of the user input")
+    error_message: str = Field(default="", description="Error message if processing failed")
+    processing_stage: str = Field(..., description="Current processing stage")
+
+
+# ============================================================================
 # FASTAPI APPLICATION
 # ============================================================================
 
@@ -256,6 +284,78 @@ async def health_check(
                 "error": str(e)
             }
         }
+
+
+# ============================================================================
+# RAG SYSTEM ENDPOINTS
+# ============================================================================
+
+@app.post(
+    "/api/process-prd",
+    response_model=PRDResponse,
+    tags=["RAG System"]
+)
+async def process_prd_input(request: PRDRequest) -> PRDResponse:
+    """
+    Process user input and generate PRD content using RAG system.
+    
+    This endpoint takes user product ideas and generates structured PRD content
+    that matches the React frontend's expected data structure.
+    
+    Args:
+        request: PRD request containing user input and conversation history
+        
+    Returns:
+        PRDResponse with generated content, questions, and analysis
+        
+    Raises:
+        HTTPException: If RAG system is not available or processing fails
+    """
+    if not RAG_SYSTEM_AVAILABLE:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="RAG system is not available. Please check server configuration."
+        )
+    
+    try:
+        # Process the user input using the RAG system
+        result = process_user_input_for_prd(
+            user_input=request.user_input,
+            conversation_history=request.conversation_history
+        )
+        
+        return PRDResponse(**result)
+        
+    except Exception as e:
+        # Log the error for debugging (in production, use proper logging)
+        print(f"Error processing PRD request: {str(e)}")
+        
+        return PRDResponse(
+            success=False,
+            prd_content={},
+            clarifying_questions=[],
+            analysis={},
+            error_message=f"Processing failed: {str(e)}",
+            processing_stage="error"
+        )
+
+
+@app.get(
+    "/api/rag-status",
+    tags=["RAG System"]
+)
+async def get_rag_status() -> dict[str, bool | str]:
+    """
+    Check if RAG system is available and ready.
+    
+    Returns:
+        Dictionary containing RAG system status
+    """
+    return {
+        "rag_available": RAG_SYSTEM_AVAILABLE,
+        "status": "ready" if RAG_SYSTEM_AVAILABLE else "unavailable",
+        "message": "RAG system is ready for PRD processing" if RAG_SYSTEM_AVAILABLE else "RAG system dependencies not found"
+    }
 
 
 # ============================================================================

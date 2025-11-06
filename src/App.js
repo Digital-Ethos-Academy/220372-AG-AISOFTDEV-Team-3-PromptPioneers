@@ -30,29 +30,102 @@ function App() {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = input;
     setInput('');
     setIsGenerating(true);
 
-    // Simulate AI processing
-    setTimeout(() => {
-      const assistantMessage = {
+    try {
+      // Call your FastAPI backend with RAG system
+      const response = await fetch('/api/process-prd', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_input: currentInput,
+          conversation_history: messages.map(msg => ({
+            role: msg.type === 'user' ? 'user' : 'assistant',
+            content: msg.content
+          }))
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Update PRD content with AI-generated sections
+        // This directly populates your existing prdContent state structure
+        setPrdContent(prev => ({
+          ...prev,
+          title: result.prd_content.title || prev.title || 'Product Requirements Document',
+          overview: result.prd_content.overview || prev.overview || 'Product overview will be generated...',
+          objectives: result.prd_content.objectives && result.prd_content.objectives.length > 0 
+            ? result.prd_content.objectives 
+            : prev.objectives,
+          features: result.prd_content.features && result.prd_content.features.length > 0 
+            ? result.prd_content.features 
+            : prev.features,
+          requirements: result.prd_content.requirements && result.prd_content.requirements.length > 0 
+            ? result.prd_content.requirements 
+            : prev.requirements,
+          userStories: result.prd_content.userStories && result.prd_content.userStories.length > 0 
+            ? result.prd_content.userStories 
+            : prev.userStories
+        }));
+
+        // Create AI response with clarifying questions
+        let aiResponse = "I've analyzed your product idea and updated the PRD! ";
+        
+        // Count how many sections were updated
+        const updatedSections = [];
+        if (result.prd_content.title) updatedSections.push('title');
+        if (result.prd_content.overview) updatedSections.push('overview');
+        if (result.prd_content.objectives?.length > 0) updatedSections.push('objectives');
+        if (result.prd_content.features?.length > 0) updatedSections.push('features');
+        if (result.prd_content.requirements?.length > 0) updatedSections.push('requirements');
+        if (result.prd_content.userStories?.length > 0) updatedSections.push('user stories');
+        
+        if (updatedSections.length > 0) {
+          aiResponse += `I've updated the ${updatedSections.join(', ')} sections. `;
+        }
+        
+        if (result.clarifying_questions && result.clarifying_questions.length > 0) {
+          aiResponse += "\n\nTo make the PRD even better, could you help me with these questions:\n";
+          result.clarifying_questions.forEach((q, i) => {
+            aiResponse += `\n${i + 1}. ${q}`;
+          });
+        } else {
+          aiResponse += "The PRD looks comprehensive based on your input! Feel free to provide more details or ask me to refine any section.";
+        }
+
+        const assistantMessage = {
+          id: messages.length + 2,
+          type: 'assistant',
+          content: aiResponse
+        };
+
+        setMessages(prev => [...prev, assistantMessage]);
+      } else {
+        // Handle error from RAG system
+        const errorMessage = {
+          id: messages.length + 2,
+          type: 'assistant',
+          content: `I encountered an issue processing your request: ${result.error_message || 'Unknown error'}. Please try rephrasing your product idea.`
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      }
+
+    } catch (error) {
+      console.error('Error calling PRD API:', error);
+      const errorMessage = {
         id: messages.length + 2,
         type: 'assistant',
-        content: 'Thanks for that information! I\'m analyzing your requirements and updating the PRD. Let me know if you\'d like to add more details or modify anything.'
+        content: 'I encountered a technical error connecting to the AI system. Please check your connection and try again.'
       };
-
-      setMessages(prev => [...prev, assistantMessage]);
-      
-      // Simulate PRD update
-      setPrdContent(prev => ({
-        ...prev,
-        title: prev.title || 'Product Requirements Document',
-        overview: prev.overview || 'Based on your input, this product aims to solve key user problems...',
-        features: [...prev.features, `Feature derived from: "${input.substring(0, 50)}..."`]
-      }));
-      
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsGenerating(false);
-    }, 2000);
+    }
   };
 
   const handleKeyPress = (e) => {
