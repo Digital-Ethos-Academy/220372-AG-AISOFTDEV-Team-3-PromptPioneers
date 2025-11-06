@@ -64,8 +64,8 @@ class FileAttachmentBase(BaseModel):
     file_size: int = Field(..., gt=0, description="Size of the file in bytes")
     storage_path: str = Field(..., min_length=1, description="Path where the file is stored")
     extracted_text: Optional[str] = Field(None, description="Text extracted from the file")
-    status: FileAttachmentStatus = Field(default=FileAttachmentStatus.uploaded, description="Current status of the file")
-    metadata: Optional[str] = Field(None, description="Additional metadata in JSON format")
+    status: FileAttachmentStatus = Field(default=FileAttachmentStatus.UPLOADED, description="Current status of the file")
+    additional_metadata: Optional[str] = Field(None, description="Additional metadata in JSON format")
 
     @field_validator('file_size')
     @classmethod
@@ -104,7 +104,7 @@ class FileAttachmentUpdate(BaseModel):
     storage_path: Optional[str] = Field(None, min_length=1)
     extracted_text: Optional[str] = None
     status: Optional[FileAttachmentStatus] = None
-    metadata: Optional[str] = None
+    additional_metadata: Optional[str] = None
 
     @field_validator('file_size')
     @classmethod

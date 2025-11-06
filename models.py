@@ -49,7 +49,7 @@ class Conversation(Base):
         title: Optional human-readable title for the conversation.
         current_prd_version_id: Foreign key to the current PRD version.
         status: Current state (e.g., 'active', 'completed', 'archived').
-        metadata: JSON-formatted additional data.
+        additional_metadata: JSON-formatted additional data.
         created_at: Timestamp of conversation creation.
         updated_at: Timestamp of last modification.
     """
@@ -63,7 +63,7 @@ class Conversation(Base):
         nullable=True
     )
     status: Mapped[str] = mapped_column(Text, nullable=False, default="active")
-    metadata: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    additional_metadata: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -131,7 +131,7 @@ class Message(Base):
         sender: Message sender ('user' or 'ai').
         message_type: Type of message ('text', 'system', 'file', etc.).
         content: The actual message content.
-        metadata: JSON-formatted additional data.
+        additional_metadata: JSON-formatted additional data.
         status: Delivery status (e.g., 'delivered', 'pending', 'failed').
         created_at: Timestamp of message creation.
         updated_at: Timestamp of last modification.
@@ -150,7 +150,7 @@ class Message(Base):
     sender: Mapped[str] = mapped_column(Text, nullable=False)  # 'user' or 'ai'
     message_type: Mapped[str] = mapped_column(Text, nullable=False)  # 'text', 'system', 'file', etc.
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    metadata: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    additional_metadata: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="delivered")
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
@@ -211,7 +211,7 @@ class FileAttachment(Base):
         storage_path: Path where file is stored on disk.
         extracted_text: Text content extracted from the file.
         status: Processing status ('uploaded', 'processing', 'processed', 'failed').
-        metadata: JSON-formatted additional data.
+        additional_metadata: JSON-formatted additional data.
         created_at: Timestamp of file upload.
         updated_at: Timestamp of last modification.
     """
@@ -232,7 +232,7 @@ class FileAttachment(Base):
     storage_path: Mapped[str] = mapped_column(Text, nullable=False)
     extracted_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="uploaded")
-    metadata: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    additional_metadata: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -278,7 +278,7 @@ class ClarifyingQuestion(Base):
         user_message_id: Message containing the answer.
         answer: User's response to the question.
         status: Current state ('unanswered', 'answered', 'dismissed').
-        metadata: JSON-formatted additional data.
+        additional_metadata: JSON-formatted additional data.
         created_at: Timestamp of question creation.
         updated_at: Timestamp of last modification.
     """
@@ -313,7 +313,7 @@ class ClarifyingQuestion(Base):
     )
     answer: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="unanswered")
-    metadata: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    additional_metadata: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -377,7 +377,7 @@ class PRDVersion(Base):
         generated_by_ai_message_id: Message that triggered generation.
         trigger_type: What caused this version ('initial', 'clarification', 'edit', etc.).
         status: Processing status ('draft', 'complete', 'archived').
-        metadata: JSON-formatted additional data.
+        additional_metadata: JSON-formatted additional data.
         created_at: Timestamp of version creation.
         updated_at: Timestamp of last modification.
     """
@@ -403,7 +403,7 @@ class PRDVersion(Base):
     )
     trigger_type: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="complete")
-    metadata: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    additional_metadata: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -476,7 +476,7 @@ class PRDChange(Base):
         old_content: Previous content (for modified/removed).
         new_content: New content (for added/modified).
         reason: Explanation for the change.
-        metadata: JSON-formatted additional data.
+        additional_metadata: JSON-formatted additional data.
         created_at: Timestamp of change recording.
     """
     __tablename__ = "prd_change"
@@ -500,7 +500,7 @@ class PRDChange(Base):
     old_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     new_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    metadata: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    additional_metadata: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
 
     # Relationships
@@ -549,7 +549,7 @@ class Export(Base):
         export_format: Output format ('markdown', 'pdf', 'word', 'json').
         file_path: Path to the exported file.
         status: Export status ('pending', 'completed', 'failed').
-        metadata: JSON-formatted additional data.
+        additional_metadata: JSON-formatted additional data.
         created_at: Timestamp of export initiation.
         updated_at: Timestamp of last modification.
     """
@@ -573,7 +573,7 @@ class Export(Base):
     export_format: Mapped[str] = mapped_column(Text, nullable=False)  # 'markdown', 'pdf', 'word', 'json'
     file_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="completed")
-    metadata: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    additional_metadata: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,

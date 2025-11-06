@@ -34,9 +34,9 @@ from models import Base
 # ============================================================================
 
 # Database configuration
-# SQLite database file location - stored in the project root directory
-DATABASE_URL: str = "sqlite:///./prd-database.db"
-DATABASE_FILE: Path = Path("prd-database.db")
+# SQLite database file location - stored in the artifacts directory
+DATABASE_URL: str = "sqlite:///./artifacts/prd-database.db"
+DATABASE_FILE: Path = Path("artifacts/prd-database.db")
 
 # ============================================================================
 # ENGINE SETUP
