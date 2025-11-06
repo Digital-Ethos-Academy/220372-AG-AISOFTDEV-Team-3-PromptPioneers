@@ -18,6 +18,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from database import get_db, init_db
 from models import FileAttachment as FileAttachmentModel
+from install_dependencies import install_langgraph_dependencies
 
 
 # ============================================================================
@@ -166,8 +167,31 @@ app.add_middleware(
 # Initialize database tables on startup
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database tables when application starts."""
+    """
+    Initialize application on startup.
+    
+    1. Install required LangGraph dependencies
+    2. Initialize database tables
+    """
+    print("\n" + "=" * 60)
+    print("🚀 Starting AI-Powered Requirement Analyzer API")
+    print("=" * 60)
+    
+    # Install LangGraph dependencies if missing
+    try:
+        install_langgraph_dependencies()
+    except Exception as e:
+        print(f"⚠ Warning: Failed to install some dependencies: {e}")
+        print("The API will continue, but agent features may not work.")
+    
+    # Initialize database
+    print("\n📊 Initializing database...")
     init_db()
+    print("✓ Database initialized successfully")
+    
+    print("=" * 60)
+    print("✓ Application startup complete!")
+    print("=" * 60 + "\n")
 
 
 # ============================================================================
