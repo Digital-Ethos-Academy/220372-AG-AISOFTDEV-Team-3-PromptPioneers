@@ -30,7 +30,7 @@ The system architecture demonstrates separation of concerns through distinct lay
 
 ## Component Architecture Analysis
 
-![Component Diagram](./artifacts/diagrams/prd_analyzer_component_diagram.png)
+![Component Diagram](./diagrams/prd_analyzer_component_diagram.png)
 
 ### System Components
 
@@ -224,7 +224,7 @@ The system architecture demonstrates separation of concerns through distinct lay
 
 ## Sequence Flow Analysis
 
-![Sequence Diagram](./artifacts/diagrams/prd_analyzer_sequence_diagram.png)
+![Sequence Diagram](./diagrams/prd_analyzer_sequence_diagram.png)
 
 ### Process Flow: PRD Generation
 
